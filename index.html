@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#172554">
+<title>Mi Asistente Personal</title>
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#172033;background:#f4f6fb}
+*{box-sizing:border-box}body{margin:0}header{background:#172554;color:white;padding:22px 18px 26px}
+header h1{margin:0 0 6px;font-size:1.55rem}header p{margin:0;color:#dbeafe}
+main{max-width:850px;margin:auto;padding:16px;display:grid;gap:16px}
+.card{background:white;border-radius:16px;padding:16px;box-shadow:0 2px 12px #0f172a0d}
+h2{font-size:1.1rem;margin:0 0 12px}label{display:block;font-size:.92rem;margin:10px 0 5px}
+input,select,textarea{font:inherit;width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:10px;background:white;color:#172033}
+button{font:inherit;border:0;border-radius:10px;padding:11px 14px;background:#1d4ed8;color:white;font-weight:650;cursor:pointer}
+button.secondary{background:#e2e8f0;color:#172033}button.danger{background:#b91c1c}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row>*{flex:1}
+small,.muted{color:#64748b}.task{border:1px solid #e2e8f0;border-radius:12px;padding:12px;margin:8px 0;display:grid;grid-template-columns:1fr auto;gap:10px}
+.task h3{font-size:1rem;margin:0 0 4px}.task p{margin:3px 0;font-size:.9rem;color:#475569}
+.pill{display:inline-block;background:#dbeafe;color:#1e40af;border-radius:999px;padding:3px 8px;font-size:.78rem}
+.done{opacity:.6}.done h3{text-decoration:line-through}
+#status{padding:10px;border-radius:10px;background:#eff6ff;color:#1e40af}
+.checkline{display:flex;gap:8px;align-items:center}.checkline input{width:auto}
+footer{max-width:850px;margin:auto;padding:0 16px 24px;font-size:.85rem;color:#64748b}
+@media(min-width:700px){main{grid-template-columns:1fr 1fr}.wide{grid-column:1/-1}}
+</style>
+</head>
+<body>
+<header><h1>Mi Asistente Personal</h1><p>Una rutina flexible para ti, tus hábitos y Dante.</p></header>
+<main>
+<section class="card">
+<h2>Plan de hoy</h2>
+<div id="today" class="muted"></div>
+<div class="row" style="margin-top:12px">
+<button id="notifyBtn">Activar notificaciones</button>
+<button class="secondary" id="testBtn">Probar aviso en 10 s</button>
+</div>
+<p id="status" role="status" aria-live="polite">Preparando la aplicación…</p>
+<p class="muted">Importante: en esta primera versión, los avisos automáticos funcionan mientras la aplicación permanece abierta y el dispositivo no la suspende. Para avisos fiables con la aplicación cerrada, necesitaremos una versión Android nativa o un servicio de notificaciones programadas.</p>
+</section>
+<section class="card">
+<h2>Añadir recordatorio</h2>
+<form id="taskForm">
+<label for="title">¿Qué quieres recordar?</label><input id="title" required maxlength="100" placeholder="Ej. Sacar a Dante">
+<div class="row">
+<div><label for="time">Hora</label><input id="time" type="time" required></div>
+<div><label for="category">Categoría</label><select id="category"><option>Personal</option><option>Vitaminas</option><option>Dante</option><option>Ejercicio</option><option>Trabajo</option><option>Lectura</option><option>Meditación</option><option>Comida</option></select></div>
+</div>
+<label for="repeat">Repetición</label><select id="repeat"><option value="once">Solo hoy</option><option value="daily">Todos los días</option><option value="3days">Cada 3 días (desde hoy)</option></select>
+<label for="notes">Notas (opcional)</label><textarea id="notes" rows="2" placeholder="Detalles útiles…"></textarea>
+<div class="row" style="margin-top:12px"><button type="submit">Guardar recordatorio</button><button type="button" class="secondary" id="sampleBtn">Cargar ejemplo</button></div>
+</form>
+</section>
+<section class="card wide">
+<div class="row"><h2 style="margin:0">Recordatorios de hoy</h2><button class="secondary" id="clearDone" style="flex:0 0 auto">Limpiar completados</button></div>
+<div id="tasks"></div>
+</section>
+<section class="card wide">
+<h2>Rutina sugerida editable</h2>
+<p class="muted">Úsala como punto de partida. Ajusta las horas a tu vida real; las vitaminas deben seguir las indicaciones de su etiqueta o de tu profesional de salud.</p>
+<div class="row">
+<button class="secondary" id="routineBtn">Añadir rutina de ejemplo</button>
+<button class="secondary" id="exportBtn">Exportar copia JSON</button>
+<label style="flex:0 0 auto;display:flex;align-items:center;gap:6px"><input type="file" id="importFile" accept=".json,application/json" style="width:180px"> Importar</label>
+</div>
+</section>
+</main>
+<footer>Versión inicial 0.1 · Los datos se guardan en este navegador de este dispositivo. Exporta una copia para no perderlos. No es una aplicación médica.</footer>
+<script>
+const $=id=>document.getElementById(id);
+const todayKey=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+let tasks=JSON.parse(localStorage.getItem('personalAssistantTasks')||'[]');
+let fired=new Set();
+function save(){localStorage.setItem('personalAssistantTasks',JSON.stringify(tasks));render()}
+function setStatus(msg){$('status').textContent=msg}
+function dateLabel(){ $('today').textContent=new Date().toLocaleDateString('es-CO',{weekday:'long',year:'numeric',month:'long',day:'numeric'}); }
+function dueToday(t){if(t.repeat==='daily')return true;if(t.repeat==='3days'){const start=new Date(t.createdDate+'T12:00:00');const now=new Date(todayKey()+'T12:00:00');return Math.floor((now-start)/86400000)%3===0}return t.date===todayKey()}
+function render(){
+ const list=$('tasks');list.innerHTML='';
+ const visible=tasks.filter(t=>dueToday(t)).sort((a,b)=>a.time.localeCompare(b.time));
+ if(!visible.length){list.innerHTML='<p class="muted">Aún no tienes recordatorios para hoy. Añade uno arriba.</p>';return}
+ visible.forEach(t=>{
+  const el=document.createElement('div');el.className='task'+(t.doneDate===todayKey()?' done':'');
+  const info=document.createElement('div');
+  const h=document.createElement('h3');h.textContent=t.time+' · '+t.title;info.appendChild(h);
+  const p=document.createElement('p');p.textContent=t.category+(t.notes?' · '+t.notes:'');info.appendChild(p);
+  const pill=document.createElement('span');pill.className='pill';pill.textContent=t.repeat==='daily'?'Diario':t.repeat==='3days'?'Cada 3 días':'Una vez';info.appendChild(pill);
+  const actions=document.createElement('div');actions.style.display='grid';actions.style.gap='6px';
+  const done=document.createElement('button');done.textContent=t.doneDate===todayKey()?'Hecho ✓':'Marcar hecho';done.className=t.doneDate===todayKey()?'secondary':'';done.onclick=()=>{t.doneDate=t.doneDate===todayKey()?'':todayKey();save()};actions.appendChild(done);
+  const del=document.createElement('button');del.textContent='Eliminar';del.className='danger';del.onclick=()=>{if(confirm('¿Eliminar este recordatorio?')){tasks=tasks.filter(x=>x.id!==t.id);save()}};actions.appendChild(del);
+  el.append(info,actions);list.appendChild(el);
+ });
+}
+function addTask(data){tasks.push({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random()),title:data.title,time:data.time,category:data.category,repeat:data.repeat,notes:data.notes||'',date:todayKey(),createdDate:todayKey(),doneDate:''});save()}
+$('taskForm').addEventListener('submit',e=>{e.preventDefault();addTask({title:$('title').value.trim(),time:$('time').value,category:$('category').value,repeat:$('repeat').value,notes:$('notes').value.trim()});$('taskForm').reset();setStatus('Recordatorio guardado en este dispositivo.')});
+$('notifyBtn').onclick=async()=>{
+ if(!('Notification'in window)){setStatus('Este navegador no admite notificaciones. Prueba Chrome en Android o una instalación PWA compatible.');return}
+ const p=await Notification.requestPermission();
+ setStatus(p==='granted'?'Notificaciones permitidas. Mantén esta página abierta para los avisos programados.': 'No se concedió permiso. Actívalo en los ajustes del navegador.');
+};
+function notify(title,body){
+ if('Notification'in window&&Notification.permission==='granted'){new Notification(title,{body,tag:'assistant-'+title})}
+ else {alert(title+'\n'+body)}
+}
+$('testBtn').onclick=()=>{setStatus('Prueba programada para dentro de 10 segundos. Mantén la página abierta.');setTimeout(()=>notify('Prueba de Mi Asistente','Si ves este aviso, las notificaciones básicas funcionan.'),10000)};
+$('sampleBtn').onclick=()=>{$('title').value='Tomar vitaminas (según indicación habitual)';$('time').value='08:00';$('category').value='Vitaminas';$('repeat').value='daily';$('notes').value='Confirmar cuando esté hecho.'};
+$('routineBtn').onclick=()=>{
+ const examples=[
+ ['Desayuno','08:00','Personal','daily',''],
+ ['Tomar vitaminas (según indicación)','08:15','Vitaminas','daily','Seguir la etiqueta o indicación profesional.'],
+ ['Pasear a Dante','09:00','Dante','daily',''],
+ ['Ejercicio o práctica marcial','10:00','Ejercicio','3days',''],
+ ['Revisar pendientes de trabajo','11:00','Trabajo','daily',''],
+ ['Preparar elementos del almuerzo','11:30','Comida','daily',''],
+ ['Lectura','16:00','Lectura','daily',''],
+ ['Meditación','18:00','Meditación','daily',''],
+ ['Pasear a Dante','19:00','Dante','daily','']
+ ];
+ if(confirm('Añadir una rutina de ejemplo con horas editables? Puedes eliminar lo que no te sirva.')){examples.forEach(x=>addTask({title:x[0],time:x[1],category:x[2],repeat:x[3],notes:x[4]}));setStatus('Rutina de ejemplo añadida. Ajusta las horas a tu día real.')}
+};
+$('clearDone').onclick=()=>{tasks=tasks.filter(t=>t.doneDate!==todayKey());save()};
+$('exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify(tasks,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='mis-recordatorios.json';a.click();URL.revokeObjectURL(a.href)};
+$('importFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const parsed=JSON.parse(await f.text());if(!Array.isArray(parsed))throw Error();if(confirm('¿Reemplazar los recordatorios actuales con la copia seleccionada?')){tasks=parsed;save();setStatus('Copia importada.')}}catch{alert('No se pudo importar. Elige un archivo JSON exportado por esta aplicación.')}e.target.value=''};
+function checkDue(){
+ const now=new Date();const day=todayKey();const current=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+ tasks.filter(t=>dueToday(t)&&t.time===current&&t.doneDate!==day).forEach(t=>{
+  const key=t.id+'-'+day+'-'+current;
+  if(!fired.has(key)){fired.add(key);notify('Recordatorio: '+t.title,'Es hora de tu actividad. Abre Mi Asistente y marca “Marcar hecho” cuando termines.');}
+ });
+}
+dateLabel();render();setInterval(checkDue,15000);
+if('serviceWorker'in navigator && location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
+</script>
+</body></html>

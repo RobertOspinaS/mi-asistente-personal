@@ -1,0 +1,11 @@
+{
+  "name": "Mi Asistente Personal",
+  "short_name": "Mi Asistente",
+  "description": "Rutina flexible, hábitos y recordatorios personales",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f6fb",
+  "theme_color": "#172554",
+  "lang": "es-CO"
+}
